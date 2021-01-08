@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+  <head>
+      <script type="text/javascript">
+          // set the pyodide files URL (packages.json, pyodide.asm.data etc)
+		  window.languagePluginUrl = './';
+		  var wsnet = new WebSocket("ws://127.0.0.1:8700");
+	  </script>
+	  <script src="./pyodide.js"></script>
+
+	  
+  </head>
+  <body>
+    Pyodide test page <br>
+    Open your browser console to see pyodide output
+	<input type='button' class="ppb" value="START" onclick="parse()"></input></br>
+	<script type="text/javascript">
+		sockets = {};
+		
+
+          languagePluginLoader.then(function () {
+			  pyodide.loadPackage(['aiosmb']);
+			  pyodide.loadPackage(['pyodidewsnet']);
+		  });
+		
+		var parse = function() {
+			
+			wsnet.onclose = function(event) {
+				pyodide.globals.wsnet_onclosed_callback(event);
+			}
+			wsnet.onmessage = function(event) {
+				var arrayBuffer;
+				var fileReader = new FileReader();
+				fileReader.onload = function(event) {
+					arrayBuffer = event.target.result;
+					console.log(arrayBuffer);
+					
+					pyodide.globals.wsnet_onmessage_callback(arrayBuffer);
+				};
+				fileReader.readAsArrayBuffer(event.data);
+			}
+
+
+
+
+
+
+			console.log(pyodide.runPython(`
+import sys
+import time
+import asyncio
+import aiosmb
+import builtins
+from pyodide import WebLoop
+
+import js
+
+builtins.global_wsnet_dispatch_table = {}
+from pyodidewsnet.protocol import *
+import pyodidewsnet.client
+
+def wsnet_onclosed_callback(evt):
+	try:
+		err = Exception('JS weboscket channel closed! Code: %s Reason: %s' % (evt.code, evt.reason))
+		for token in builtins.global_wsnet_dispatch_table:
+			builtins.global_wsnet_dispatch_table[token].put_nowait((None, err))
+	
+	except Exception as e:
+		print('wsnet_onclosed_callback crashed! Reason: %s' % e)
+
+def wsnet_onmessage_callback(data):
+	try:
+		data = data.tobytes() # data here will be a memoryview class, need to convert it to bytes
+		print('here %s ' % data)
+		cmd = CMD.from_bytes(data)
+		print('here cmd %s' % cmd)
+		builtins.global_wsnet_dispatch_table[cmd.token].put_nowait((cmd, None))
+	except Exception as e:
+		print('wsnet_onmessage_callback crashed! Reason: %s' % e)
+
+async def amain():
+	in_q = asyncio.Queue()
+	out_q = asyncio.Queue()
+	
+	net = None
+	try:
+		net = pyodidewsnet.client.WSNetworkTCP("172.217.168.46", "80", in_q, out_q)
+		_, err = await net.run()
+		if err is not None:
+			print('Connect error! %s' % err)
+			raise err
+		
+		await out_q.put((b'GET / HTTP/1.1\\r\\nHost: google.com\\r\\n\\r\\n', None))
+		data_in, err = await in_q.get()
+		if err is not None:
+			raise err
+		print('X %s' % data_in)
+
+	except Exception as e:
+		print('Error! %s' % e)
+	finally:
+		if net is not None:
+			await net.terminate()
+	
+loop = asyncio.get_event_loop()
+loop.run_until_complete(amain())
+
+`));
+          }
+    </script>
+  </body>
+</html>

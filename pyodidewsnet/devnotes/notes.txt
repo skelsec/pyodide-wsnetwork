@@ -1,0 +1,30 @@
+
+JS code must have this line:
+
+wsnet = new WebSocket("ws://127.0.0.1:8700");
+
+Asyncio must be set up using the WebLoop class also the loop must be defined like in this example!!!!
+
+
+global_wsnet_in_q = None
+
+async def amain():
+	from pyodinewsnet.client import wsnet_onmessage
+
+	global global_wsnet_in_q
+	global_wsnet_in_q = asyncio.Queue()
+	wsnet.onmessage = wsnet_onmessage
+	in_q = asyncio.Queue()
+	out_q = asyncio.Queue()
+	
+	net = WSNetworkTCP("172.217.168.46", "80", in_q, out_q)
+	asyncio.create_task(net.run())
+	while True:
+		
+		await out_q.put("RPLY")
+		await asyncio.sleep(1)
+		x = await in_q.get()
+		print('X %s' % x)
+
+loop = asyncio.get_event_loop()
+loop.run_until_complete(amain())
