@@ -1,6 +1,5 @@
-import json
+import io
 
-from pyodidewsnet.utils.encoder import UniversalEncoder
 from pyodidewsnet.protocol.cmdtypes import CMDType
 from pyodidewsnet.protocol import CMD
 
@@ -9,17 +8,19 @@ class WSNContinue(CMD):
 		self.type = CMDType.CONTINUE
 		self.token = token
 	
-	def to_dict(self):
-		return self.__dict__
-	
-	def to_json(self):
-		return json.dumps(self.to_dict(), cls = UniversalEncoder)
+	@staticmethod
+	def from_bytes(data):
+		return WSNContinue.from_buffer(io.BytesIO(data))
 	
 	@staticmethod
-	def from_dict(d):
-		cmd = WSNContinue(d['token'])
-		return cmd
-
-	@staticmethod
-	def from_json(jd):
-		return WSNContinue.from_dict(json.loads(jd))
+	def from_buffer(buff):
+		token = buff.read(16)
+		return WSNContinue(token)
+	
+	def to_data(self):
+		t = self.type.value.to_bytes(2, byteorder = 'big', signed = False)
+		if isinstance(self.token, str):
+			t += self.token.encode()
+		else:
+			t += self.token
+		return t

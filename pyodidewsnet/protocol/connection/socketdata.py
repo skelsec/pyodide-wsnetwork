@@ -1,4 +1,4 @@
-import json
+import io
 
 from pyodidewsnet.utils.encoder import UniversalEncoder
 from pyodidewsnet.protocol.cmdtypes import CMDType
@@ -11,13 +11,20 @@ class WSNSocketData(CMD):
 		self.data = data
 	
 	@staticmethod
-	def from_data(hdr, data):
-		return WSNSocketData(hdr['token'], data)
+	def from_bytes(data):
+		return WSNSocketData.from_buffer(io.BytesIO(data))
+	
+	@staticmethod
+	def from_buffer(buff):
+		token = buff.read(16)
+		data = buff.read(-1)
+		return WSNSocketData(token, data)
 
-
-	def get_bytes(self):
-		hj = json.dumps({'token': self.token, 'type': self.type.value}).encode()
-		payload = len(hj).to_bytes(4, byteorder='big', signed=False) 
-		payload += hj
-		payload += self.data
-		return payload
+	def to_data(self):
+		t = self.type.value.to_bytes(2, byteorder = 'big', signed = False)
+		if isinstance(self.token, str):
+			t += self.token.encode()
+		else:
+			t += self.token
+		t += self.data
+		return t

@@ -1,6 +1,5 @@
-import json
+import io
 
-from pyodidewsnet.utils.encoder import UniversalEncoder
 from pyodidewsnet.protocol.cmdtypes import CMDType
 from pyodidewsnet.protocol import CMD
 
@@ -11,17 +10,30 @@ class WSNErr(CMD):
 		self.reason = reason
 		self.extra = extra
 	
-	def to_dict(self):
-		return self.__dict__
-	
-	def to_json(self):
-		return json.dumps(self.to_dict(), cls = UniversalEncoder)
+	@staticmethod
+	def from_bytes(data):
+		return WSNErr.from_buffer(io.BytesIO(data))
 	
 	@staticmethod
-	def from_dict(d):
-		cmd = WSNErr(d['token'],d['reason'], d['extra'])
-		return cmd
+	def from_buffer(buff):
+		token = buff.read(16)
+		length = int.from_bytes(buff.read(4), byteorder='big', signed=False)
+		reason = buff.read(length).decode()
+		length = int.from_bytes(buff.read(4), byteorder='big', signed=False)
+		extra = buff.read(length).decode()
 
-	@staticmethod
-	def from_json(jd):
-		return WSNErr.from_dict(json.loads(jd))
+		return WSNErr(token, reason, extra)
+	
+	def to_data(self):
+		t = self.type.value.to_bytes(2, byteorder = 'big', signed = False)
+		if isinstance(self.token, str):
+			t += self.token.encode()
+		else:
+			t += self.token
+
+		t += len(self.reason).to_bytes(4, byteorder='big', signed=False)
+		t += self.reason.encode()
+		t += len(self.extra).to_bytes(4, byteorder='big', signed=False)
+		t += self.extra.encode()
+
+		return t

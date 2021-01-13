@@ -14,7 +14,7 @@ class WSNetworkTCP:
 		self.port = port
 		self.in_q = in_q
 		self.out_q = out_q
-		self.token = os.urandom(8).hex()
+		self.token = os.urandom(16)
 
 		self.in_task = None
 		self.out_task = None
@@ -35,6 +35,10 @@ class WSNetworkTCP:
 				if cmd.type == CMDType.OK:
 					print('Remote end terminated the socket')
 					raise Exception('Remote end terminated the socket')
+				elif cmd.type == CMDType.ERR:
+					print('Proxy sent error during data transmission. Killing the tunnel.')
+					raise Exception('Proxy sent error during data transmission. Killing the tunnel.')
+
 				await self.in_q.put((cmd.data, None))
 			except asyncio.CancelledError:
 				return
@@ -71,10 +75,12 @@ class WSNetworkTCP:
 			#print('connect %s' % cmd)
 			if err is not None:
 				raise err
-			if cmd.type != CMDType.CONTINUE:
-				raise Exception('Expected CONTINUE, got %s' % cmd.type.value)
-			
-			return True, None
+			if cmd.type == CMDType.CONTINUE:
+				return True, None
+			if cmd.type == CMDType.ERR:
+				raise Exception('Connection failed, proxy sent error. Err: %s' % cmd.reason)
+			raise Exception('Connection failed, expected CONTINUE, got %s' % cmd.type.value)
+				
 		except Exception as e:
 			return False, e
 

@@ -114,7 +114,7 @@ class ClientHandler:
 				await self.send_continue(cmd)
 				while True:
 					await asyncio.sleep(0)
-					data = await reader.read(10240)
+					data = await reader.read(65536) #helps smb a lot
 					if data == b'':
 						await self.send_ok(cmd)
 						return
