@@ -41,7 +41,7 @@ class ClientHandler:
 			'timestamp' : datetime.datetime.utcnow().isoformat(),
 			'sessionid' : self.session_id,
 			'connectionid' : cmd.get('cid'),
-			'token' : cmd.get('token'),
+			'token' : cmd.get('token', b'').hex(),
 			'cmdtype' : cmd.get('type', dummyEnum.UNKNOWN).value,
 			'state' : state,
 			'path' : path,

@@ -6,7 +6,8 @@ import builtins
 from pyodidewsnet.protocol import *
 
 # this is a pyodide module to access javascript objects
-from js import wsnet
+#from js import wsnet
+#import js
 
 class WSNetworkTCP:
 	def __init__(self, ip, port, in_q, out_q):
@@ -55,14 +56,14 @@ class WSNetworkTCP:
 				if data is None or data == b'':
 					return
 				cmd = WSNSocketData(self.token, data)
-				wsnet.send(cmd.to_bytes())
+				builtins.global_current_websocket[-1].send(cmd.to_bytes())
 		except Exception as e:
 			traceback.print_exc()
 			return
 		finally:
 			try:
 				cmd = WSNOK(self.token)
-				wsnet.send(cmd.to_bytes())
+				builtins.global_current_websocket[-1].send(cmd.to_bytes())
 			except:
 				pass
 
@@ -70,7 +71,7 @@ class WSNetworkTCP:
 		try:
 			builtins.global_wsnet_dispatch_table[self.token] = asyncio.Queue()
 			cmd = WSNConnect(self.token, 'TCP', self.ip, self.port)
-			wsnet.send(cmd.to_bytes())
+			builtins.global_current_websocket[-1].send(cmd.to_bytes())
 			cmd, err = await builtins.global_wsnet_dispatch_table[self.token].get()
 			#print('connect %s' % cmd)
 			if err is not None:

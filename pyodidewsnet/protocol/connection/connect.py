@@ -25,6 +25,9 @@ class WSNConnect(CMD):
 			ip = str(ipaddress.ip_address(buff.read(4)))
 		elif ipver == b'\x06':
 			ip = str(ipaddress.ip_address(buff.read(16)))
+		elif ipver == b'\xFF':
+			iplen = int.from_bytes(buff.read(4), byteorder='big', signed=False)
+			ip = buff.read(iplen).decode()
 		port = int.from_bytes(buff.read(2), byteorder='big', signed=False)
 		return WSNConnect(token, protocol, ip, port)
 
@@ -35,13 +38,17 @@ class WSNConnect(CMD):
 		else:
 			t += self.token
 		t += self.protocol.encode()
-		ip = ipaddress.ip_address(self.ip)
-		if ip.version == 4:
-			t += b'\x04' + ip.packed
-		elif ip.version == 6:
-			t += b'\x06' + ip.packed
+		try:
+			ip = ipaddress.ip_address(self.ip)
+		except:
+			t += b'\xFF' + len(self.ip).to_bytes(4, byteorder='big', signed = False) + self.ip.encode()
 		else:
-			raise Exception('?')
+			if ip.version == 4:
+				t += b'\x04' + ip.packed
+			elif ip.version == 6:
+				t += b'\x06' + ip.packed
+			else:
+				raise Exception('?')
 		
 		t += self.port.to_bytes(2, byteorder = 'big', signed = False)
 		return t
