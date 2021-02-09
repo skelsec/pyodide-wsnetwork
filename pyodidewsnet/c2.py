@@ -3,6 +3,8 @@ import asyncio
 import os
 import io
 import traceback
+import datetime
+import logging
 
 from pyodidewsnet import logger
 from pyodidewsnet.protocol import *
@@ -27,9 +29,12 @@ class ClientServer:
 	async def __handle_in_queue(self):
 		while True:
 			res = await self.in_q.get()
-			agentid, data = res
-			print('AGENT DATA IN %s' % data)
-			await self.clients[agentid].send(data)
+			try:
+				agentid, data = res
+				#print('AGENT DATA SEND %s' % data)
+				await self.clients[agentid].send(data)
+			except Exception as e:
+				logger.exception('failed sending agent data!')
 	
 
 	async def handle_client(self, ws, path):
@@ -40,25 +45,31 @@ class ClientServer:
 			remote_ip, remote_port = ws.remote_address
 			logger.info('AGENT connected from %s:%d' % (remote_ip, remote_port))
 			while True:
-				data = await ws.recv()
-				print('AGENT DATA OUT %s' % data)
-				reply = CMD.from_bytes(data)
-				if reply.token == b'\x00'*16:
-					await self.signal_q_out.put(('AGENTIN', agentid, reply))
-					continue
-				
-				await self.out_q.put((agentid, reply.token, data))
+				try:
+					data = await ws.recv()
+					#print('AGENT DATA RECV %s' % data)
+					reply = CMD.from_bytes(data)
+					if reply.token == b'\x00'*16:
+						await self.signal_q_out.put(('AGENTIN', agentid, reply))
+						continue
+					
+					await self.out_q.put((agentid, reply.token, data))
+				except Exception as e:
+					logger.exception('Error in agent handling')
+					return
 		except Exception as e:
 			traceback.print_exc()
 		finally:
 			if agentid in self.clients:
 				del self.clients[agentid]
 				await self.signal_q_out.put(('AGENTOUT', agentid, None))
+			await ws.close()
 
 	async def run(self):
 		asyncio.create_task(self.__handle_in_queue())
 		self.wsserver = await websockets.serve(self.handle_client, self.listen_ip, self.listen_port, ssl=self.ssl_ctx)
 		await self.wsserver.wait_closed()
+		print('Agent handler exiting')
 
 class OPServer:
 	def __init__(self, in_q, out_q, signal_q_in, signal_q_out, listen_ip = '0.0.0.0', listen_port = 8900, ssl_ctx = None):
@@ -73,14 +84,14 @@ class OPServer:
 		self.data_lookop = {}
 		self.signal_q_in = signal_q_in
 		self.signal_q_out = signal_q_out
-
+				
 	async def __handle_signal_in_queue(self):
 		while True:
 			data = await self.signal_q_in.get()
 			msg, agentid, data = data
-			print('OP SIGNAL IN! %s' % msg)
+			#print('OP SIGNAL IN! %s' % msg)
 			if msg == 'AGENTIN':
-				print(agentid.hex())
+				print('NEW AGENT : %s' % agentid.hex())
 				self.agents[agentid] = data
 				agentnotify = WSNListAgentsReply(
 					b'\x00'*16,
@@ -96,7 +107,8 @@ class OPServer:
 					try:
 						await self.operators[opid].send(agentnotify.to_bytes())
 					except Exception as e:
-						traceback.print_exc()
+						del self.operators[opid]
+						#traceback.print_exc()
 
 			elif msg == 'AGENTOUT':
 				if agentid in self.agents:
@@ -105,11 +117,22 @@ class OPServer:
 	async def __handle_in_queue(self):
 		while True:
 			res = await self.in_q.get()
-			print('OP DATA IN %s' % repr(res))
-			agentid, token, data = res
-			tid = agentid+token
-			if tid in self.data_lookop:
-				await self.data_lookop[agentid+token].send(data)
+			try:
+				#print('OP DATA IN %s' % repr(res))
+				agentid, token, data = res
+				tid = agentid+token
+				if tid in self.data_lookop:
+					try:
+						await self.data_lookop[tid].send(data)
+					except:
+						# currently there is no tracking if the operator has disappeared
+						del self.data_lookop[tid]
+				else:
+					print('TID NOT FOUND!')
+					print('TOKEN:   %s' % token)
+					print('AGENTID: %s' % agentid)
+			except Exception as e:
+				logger.exception('OP __handle_in_queue')
 
 	async def handle_client(self, ws, path):
 		opid = None
@@ -120,16 +143,17 @@ class OPServer:
 			logger.info('Client connected from %s:%d' % (remote_ip, remote_port))
 			while True:
 				data = await ws.recv()
-				print('OP DATA OUT %s' % data)
+				#print('OP DATA OUT %s' % data)
 				buff = io.BytesIO(data)
 				dlen = int.from_bytes(buff.read(4), byteorder='big', signed=False)
 				agentid = buff.read(16)
 				
-				print('agentid %s' % agentid.hex())
+				
 				agentdata = buff.read(-1)
-				print(0)
 				cmd = CMD.from_bytes(agentdata)
-				print(cmd)
+				#print(cmd)
+				#print('OP TOKEN: %s' % cmd.token.hex())
+				#print('OP AGENTID: %s' % agentid.hex())
 				if agentid not in self.agents:
 					err = WSNErr(cmd.token, "Agent not found", "")
 					await ws.send(err.to_bytes())
@@ -151,15 +175,12 @@ class OPServer:
 							)
 							await ws.send(reply.to_bytes())
 					continue
-				print(2)
 				self.data_lookop[agentid+cmd.token] = ws
 				
 				await self.out_q.put((agentid, agentdata))
 		
 		except Exception as e:
 			print('OPERATOR DISCONNECTED!')
-			traceback.print_exc()
-			print(e)
 		finally:
 			if opid in self.operators:
 				del self.operators[opid]
@@ -171,6 +192,8 @@ class OPServer:
 		await self.wsserver.wait_closed()
 
 async def amain():
+	#logging.basicConfig(level=logging.DEBUG)
+
 	clientsrv_task = None
 	opsrv_task = None
 

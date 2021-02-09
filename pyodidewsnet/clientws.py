@@ -28,6 +28,16 @@ class WSNetworkWS:
 			self.in_task.cancel()
 		if self.out_task is not None:
 			self.out_task.cancel()
+		if self.ws is not None:
+			await self.ws.close()
+
+	def close(self):
+		if self.in_task is not None:
+			self.in_task.cancel()
+		if self.out_task is not None:
+			self.out_task.cancel()
+		if self.ws is not None:
+			self.ws.close()
 
 	async def __handle_in(self):
 		while True:
