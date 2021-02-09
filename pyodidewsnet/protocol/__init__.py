@@ -123,7 +123,8 @@ type2cmd = {
 	CMDType.AUTHERR : WSNAuthError,
 	CMDType.SEQUENCE : WSNGetSequenceNo,
 	CMDType.SEQUENCEREPLY : WSNGetSequenceNoReply,
-	CMDType.GETINFO : WSNGetInfoReply,
+	CMDType.GETINFO : WSNGetInfo,
 	CMDType.GETINFOREPLY : WSNGetInfoReply,
 	CMDType.LISTAGENTS : WSNListAgents,
+	CMDType.AGENTINFO : WSNListAgentsReply,
 }

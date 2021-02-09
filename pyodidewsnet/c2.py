@@ -105,6 +105,7 @@ class OPServer:
 				)
 				for opid in self.operators:
 					try:
+						print(agentnotify.to_bytes())
 						await self.operators[opid].send(agentnotify.to_bytes())
 					except Exception as e:
 						del self.operators[opid]

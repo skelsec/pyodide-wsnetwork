@@ -24,14 +24,14 @@ class WSNListAgentsReply(CMD):
 	@staticmethod
 	def from_buffer(buff):
 		token = buff.read(16)
-		agentid = buff.read(16)
+		agentid = readBytes(buff)
 		pid = int(readStr(buff))
 		username = readStr(buff, 'utf-16-le')
 		domain = readStr(buff, 'utf-16-le')
 		logonserver = readStr(buff, 'utf-16-le')
 		cpuarch = readStr(buff)
 		hostname = readStr(buff, 'utf-16-le')
-		return WSNListAgentsReply(agentid, token, pid, username, domain, logonserver, cpuarch, hostname)
+		return WSNListAgentsReply(token, agentid, pid, username, domain, logonserver, cpuarch, hostname)
 	
 	def to_data(self):
 		buff = io.BytesIO()
@@ -40,6 +40,7 @@ class WSNListAgentsReply(CMD):
 			t += self.token.encode()
 		else:
 			t += self.token
+		buff.write(t)
 		writeBytes(buff, self.agentid)
 		writeStr(buff, str(self.pid))
 		writeStr(buff, self.username, encoding='utf-16-le')
@@ -47,6 +48,7 @@ class WSNListAgentsReply(CMD):
 		writeStr(buff, self.logonserver, encoding='utf-16-le')
 		writeStr(buff, self.cpuarch)
 		writeStr(buff, self.hostname, encoding='utf-16-le')
+		buff.seek(0,0)
 		return buff.read()
 	
 	def to_dict(self):

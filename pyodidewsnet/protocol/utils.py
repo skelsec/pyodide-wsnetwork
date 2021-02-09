@@ -16,7 +16,9 @@ def readStr(buff, encoding='ascii'):
 	return data
 
 def writeStr(buff, data, encoding='ascii'):
-	data = str(data).encode(encoding)
+	if isinstance(data, str) is False:
+		data = str(data)
+	data = data.encode(encoding)
 	dlen = len(data).to_bytes(4, byteorder='big', signed = False)
 	buff.write(dlen)
 	buff.write(data)
