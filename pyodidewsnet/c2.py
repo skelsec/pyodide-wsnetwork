@@ -192,7 +192,7 @@ class OPServer:
 		self.wsserver = await websockets.serve(self.handle_client, self.listen_ip, self.listen_port, ssl=self.ssl_ctx)
 		await self.wsserver.wait_closed()
 
-async def amain():
+async def amain(args):
 	#logging.basicConfig(level=logging.DEBUG)
 
 	clientsrv_task = None
@@ -203,8 +203,8 @@ async def amain():
 		signal_q_out = asyncio.Queue()
 		in_q = asyncio.Queue()
 		out_q = asyncio.Queue()
-		clientsrv = ClientServer(in_q, out_q, signal_q_in, signal_q_out)
-		opsrv = OPServer(in_q, out_q, signal_q_in, signal_q_out)
+		clientsrv = ClientServer(in_q, out_q, signal_q_in, signal_q_out, listen_ip = args.agent_ip, listen_port = args.agent_port)
+		opsrv = OPServer(in_q, out_q, signal_q_in, signal_q_out, listen_ip = args.server_ip, listen_port = args.server_port)
 		clientsrv_task = asyncio.create_task(clientsrv.run())
 		await opsrv.run()
 		
@@ -212,5 +212,18 @@ async def amain():
 	except Exception as e:
 		traceback.print_exc()
 
+def main():
+	import argparse
+
+	parser = argparse.ArgumentParser(description='wsnetws c2 server')
+	parser.add_argument('--server-ip', default='0.0.0.0', help = 'server listen ip')
+	parser.add_argument('--server-port', default = 8900, type=int, help = 'server listen port')
+	parser.add_argument('--agent-ip', default='0.0.0.0', help = 'server listen ip')
+	parser.add_argument('--agent-port', default = 8901, type=int, help = 'server listen port')
+
+	args = parser.parse_args()
+
+	asyncio.run(amain(args))
+
 if __name__ == '__main__':
-	asyncio.run(amain())
+	main()
