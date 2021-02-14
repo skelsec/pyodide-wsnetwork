@@ -6,7 +6,7 @@ import io
 import json
 
 class WSNGetInfoReply(CMD):
-	def __init__(self, token, pid, username, domain, logonserver, cpuarch, hostname):
+	def __init__(self, token, pid, username, domain, logonserver, cpuarch, hostname, usersid):
 		self.type = CMDType.GETINFOREPLY
 		self.token = token
 		self.pid = pid
@@ -15,6 +15,8 @@ class WSNGetInfoReply(CMD):
 		self.logonserver = logonserver
 		self.cpuarch = cpuarch
 		self.hostname = hostname
+		self.usersid = usersid
+
 	
 	@staticmethod
 	def from_bytes(data):
@@ -29,7 +31,8 @@ class WSNGetInfoReply(CMD):
 		logonserver = readStr(buff, 'utf-16-le')
 		cpuarch = readStr(buff)
 		hostname = readStr(buff, 'utf-16-le')
-		return WSNGetInfoReply(token, pid, username, domain, logonserver, cpuarch, hostname)
+		usersid = readStr(buff)
+		return WSNGetInfoReply(token, pid, username, domain, logonserver, cpuarch, hostname, usersid)
 	
 	def to_data(self):
 		raise NotImplementedError()
@@ -47,7 +50,8 @@ class WSNGetInfoReply(CMD):
 			'domain' : self.domain,
 			'logonserver' : self.logonserver,
 			'cpuarch' : self.cpuarch,
-			'hostname' : self.hostname
+			'hostname' : self.hostname,
+			'usersid' : self.usersid
 		}
 
 	def to_json(self):

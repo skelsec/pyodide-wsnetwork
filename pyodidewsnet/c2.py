@@ -87,33 +87,37 @@ class OPServer:
 				
 	async def __handle_signal_in_queue(self):
 		while True:
-			data = await self.signal_q_in.get()
-			msg, agentid, data = data
-			#print('OP SIGNAL IN! %s' % msg)
-			if msg == 'AGENTIN':
-				print('NEW AGENT : %s' % agentid.hex())
-				self.agents[agentid] = data
-				agentnotify = WSNListAgentsReply(
-					b'\x00'*16,
-					agentid,
-					data.pid, 
-					data.username, 
-					data.domain, 
-					data.logonserver, 
-					data.cpuarch, 
-					data.hostname
-				)
-				for opid in self.operators:
-					try:
-						print(agentnotify.to_bytes())
-						await self.operators[opid].send(agentnotify.to_bytes())
-					except Exception as e:
-						del self.operators[opid]
-						#traceback.print_exc()
+			try:
+				data = await self.signal_q_in.get()
+				msg, agentid, data = data
+				#print('OP SIGNAL IN! %s' % msg)
+				if msg == 'AGENTIN':
+					print('NEW AGENT : %s' % agentid.hex())
+					self.agents[agentid] = data
+					agentnotify = WSNListAgentsReply(
+						b'\x00'*16,
+						agentid,
+						data.pid, 
+						data.username, 
+						data.domain, 
+						data.logonserver, 
+						data.cpuarch, 
+						data.hostname,
+						data.usersid,
+					)
+					for opid in self.operators:
+						try:
+							print(agentnotify.to_bytes())
+							await self.operators[opid].send(agentnotify.to_bytes())
+						except Exception as e:
+							del self.operators[opid]
+							#traceback.print_exc()
 
-			elif msg == 'AGENTOUT':
-				if agentid in self.agents:
-					del self.agents[agentid]
+				elif msg == 'AGENTOUT':
+					if agentid in self.agents:
+						del self.agents[agentid]
+			except Exception as e:
+				traceback.print_exc()
 
 	async def __handle_in_queue(self):
 		while True:
@@ -141,7 +145,7 @@ class OPServer:
 			opid = os.urandom(16)
 			self.operators[opid] = ws
 			remote_ip, remote_port = ws.remote_address
-			logger.info('Client connected from %s:%d' % (remote_ip, remote_port))
+			logger.info('Operator connected from %s:%d' % (remote_ip, remote_port))
 			while True:
 				data = await ws.recv()
 				#print('OP DATA OUT %s' % data)
@@ -172,7 +176,8 @@ class OPServer:
 								agentinfo.domain, 
 								agentinfo.logonserver, 
 								agentinfo.cpuarch, 
-								agentinfo.hostname
+								agentinfo.hostname,
+								agentinfo.usersid
 							)
 							await ws.send(reply.to_bytes())
 					continue

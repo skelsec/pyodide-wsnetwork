@@ -6,11 +6,12 @@ from urllib.parse import urlparse, parse_qs
 import multiprocessing
 import pathlib
 import datetime
+import json
 
 from jackdaw.dbmodel import create_db, get_session
 from jackdaw.gatherer.gatherer import Gatherer
 from jackdaw.nest.wrapper import NestServer
-import aiohttp
+from jackdaw.aclpwn import ACLPwn
 
 import websockets
 from pyodidewsnet.protocol import OPCMD, CMD, WSNOK, CMDType, WSNSocketData, WSNConnect
@@ -41,6 +42,7 @@ class WebServerProcess(multiprocessing.Process):
 			)
 		print('runnin server!')
 		self.server.run()
+
 
 class C2AutoStart:
 	def __init__(self, c2url, workdir = None):
@@ -81,7 +83,7 @@ class C2AutoStart:
 			domain = cmd.domain
 			username = cmd.username
 			if username.find('\\') != -1:
-				domain, username = username.split('\\')
+				domaina, username = username.split('\\')
 			
 			dns_url = 'dns://%s:53/?proxytype=%s&proxyhost=%s&proxyport=%s&proxyagentid=%s' % (cmd.logonserver, wsproto, self.c2_ip, self.c2_port, cmd.agentid.hex())
 			kerberos_url = '%s://%s:%s/?type=sspiproxy&agentid=%s' % (self.c2_proto, self.c2_ip, self.c2_port, cmd.agentid.hex())
@@ -152,12 +154,6 @@ class C2AutoStart:
 					writer.close()
 					break
 
-			# loading graph to memory... graphid is always 1 in this case
-			async with aiohttp.ClientSession() as session:
-				async with session.get('http://127.0.0.1:%s/graph?adids=1' % web_port) as resp:
-					print(resp.status)
-					print(await resp.text())
-
 			print('back to here!')
 			await asyncio.sleep(1000)
 
@@ -168,8 +164,6 @@ class C2AutoStart:
 			print(e)
 
 	async def run(self):
-		
-			
 		try:
 			await self.setup()
 			while True:
@@ -188,8 +182,6 @@ class C2AutoStart:
 							if cmd.type == CMDType.AGENTINFO:
 								asyncio.create_task(self.__start_cmd(cmd))
 							
-
-
 						except Exception as e:
 							print('run exception!')
 							print(e)

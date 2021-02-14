@@ -6,7 +6,7 @@ import io
 import json
 
 class WSNListAgentsReply(CMD):
-	def __init__(self, token, agentid, pid, username, domain, logonserver, cpuarch, hostname):
+	def __init__(self, token, agentid, pid, username, domain, logonserver, cpuarch, hostname, usersid):
 		self.type = CMDType.AGENTINFO
 		self.agentid = agentid
 		self.token = token
@@ -16,6 +16,7 @@ class WSNListAgentsReply(CMD):
 		self.logonserver = logonserver
 		self.cpuarch = cpuarch
 		self.hostname = hostname
+		self.usersid = usersid
 	
 	@staticmethod
 	def from_bytes(data):
@@ -31,7 +32,8 @@ class WSNListAgentsReply(CMD):
 		logonserver = readStr(buff, 'utf-16-le')
 		cpuarch = readStr(buff)
 		hostname = readStr(buff, 'utf-16-le')
-		return WSNListAgentsReply(token, agentid, pid, username, domain, logonserver, cpuarch, hostname)
+		usersid = readStr(buff)
+		return WSNListAgentsReply(token, agentid, pid, username, domain, logonserver, cpuarch, hostname, usersid)
 	
 	def to_data(self):
 		buff = io.BytesIO()
@@ -48,6 +50,7 @@ class WSNListAgentsReply(CMD):
 		writeStr(buff, self.logonserver, encoding='utf-16-le')
 		writeStr(buff, self.cpuarch)
 		writeStr(buff, self.hostname, encoding='utf-16-le')
+		writeStr(buff, self.usersid)
 		buff.seek(0,0)
 		return buff.read()
 	
@@ -59,7 +62,8 @@ class WSNListAgentsReply(CMD):
 			'domain' : self.domain,
 			'logonserver' : self.logonserver,
 			'cpuarch' : self.cpuarch,
-			'hostname' : self.hostname
+			'hostname' : self.hostname,
+			'usersid' : self.usersid
 		}
 
 	def to_json(self):
