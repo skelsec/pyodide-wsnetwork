@@ -44,11 +44,11 @@ class WebServerProcess(multiprocessing.Process):
 		self.server.run()
 
 DUCKY_EVENT_LOOKUP = {
-	'CONNECTED' : 'Connected to the C2 server!\r\nENTER',
-	'AGENTCONNECTED' : 'Agent connected!\r\nENTER',
-	'JDENUMSTART' : 'Starting domain enumeration\r\nENTER',
-	'JDENUMFINISH' : 'Domain enumeration finished!\r\nENTER',
-	'JDSERVICESTART' : 'JD service\r\nENTER',
+	'CONNECTED'      : 'STRING Connected to the C2 server!\r\nENTER',
+	'AGENTCONNECTED' : 'STRING Agent connected!\r\nENTER',
+	'JDENUMSTART'    : 'STRING Starting domain enumeration\r\nENTER',
+	'JDENUMFINISH'   : 'STRING Domain enumeration finished!\r\nENTER',
+	'JDSERVICESTART' : 'STRING JD service\r\nENTER',
 }
 
 class C2AutoStart:
