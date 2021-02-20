@@ -42,22 +42,27 @@ class WebServerProcess(multiprocessing.Process):
 DUCKY_EVENT_LOOKUP = {
 	'CONNECTED'      : [
 		'STRING Connected to the C2 server!',
+		'DELAY 100',
 		'ENTER',
 	],
 	'AGENTCONNECTED' : [
 		'STRING Agent connected!',
+		'DELAY 100',
 		'ENTER',
 	],
 	'JDENUMSTART'    : [
 		'STRING Starting domain enumeration',
+		'DELAY 100',
 		'ENTER',
 	],
 	'JDENUMFINISH'   : [
 		'STRING Domain enumeration finished!',
+		'DELAY 100',
 		'ENTER',
 	],
 	'JDSERVICESTART' : [
 		'STRING JD service',
+		'DELAY 100',
 		'ENTER',
 	]
 }
@@ -117,8 +122,15 @@ class C2AutoStart:
 					while True:
 						try:
 							data = await self.ducky_q.get()
-							data = '\r\n'.join(data)
-							await websocket.send(data)
+							#delay is buggy so we are emulating it
+							res = ''
+							for entry in data:
+								if entry.upper().startswith('DELAY '):
+									t = int(entry[6:].strip())
+									await asyncio.sleep(t/1000)
+								else:
+									res += entry + '\r\n'
+							await websocket.send(res)
 						except:
 							break
 				await asyncio.sleep(5)
