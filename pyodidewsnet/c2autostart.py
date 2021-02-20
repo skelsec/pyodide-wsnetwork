@@ -43,17 +43,28 @@ class WebServerProcess(multiprocessing.Process):
 		print('runnin server!')
 		self.server.run()
 
+DUCKY_EVENT_LOOKUP = {
+	'CONNECTED' : 'Connected to the C2 server!\r\nENTER',
+	'AGENTCONNECTED' : 'Agent connected!\r\nENTER',
+	'JDENUMSTART' : 'Starting domain enumeration\r\nENTER',
+	'JDENUMFINISH' : 'Domain enumeration finished!\r\nENTER',
+	'JDSERVICESTART' : 'JD service\r\nENTER',
+}
 
 class C2AutoStart:
-	def __init__(self, c2url, workdir = None):
+	def __init__(self, c2url, workdir = None, duckysvc = None, ducksvcevt = DUCKY_EVENT_LOOKUP):
 		self.c2url = c2url
 		self.workdir = workdir
+		self.duckysvc_url = duckysvc
+		self.duckysvc_event = ducksvcevt
 		self.ws = None
 		self.c2_ip = None
 		self.c2_port = None
 		self.c2_proto = None
 
 		self.web_start_port = 5000
+		self.duck_task = None
+		self.ducky_q = None
 
 	def get_web_port(self):
 		t = self.web_start_port
@@ -61,6 +72,9 @@ class C2AutoStart:
 		return t
 
 	async def setup(self):
+		self.ducky_q = asyncio.Queue()
+		self.duck_task = asyncio.create_task(self.__ducky_send())
+
 		if self.workdir is None:
 			self.workdir = str(pathlib.Path.cwd())
 		o = urlparse(self.c2url)
@@ -73,17 +87,38 @@ class C2AutoStart:
 			else:
 				self.c2_port == 443
 
+	async def __ducky_send(self):
+		if self.duckysvc_url is None:
+			while True:
+				try:
+					await self.ducky_q.get()
+				except:
+					return
+
+		else:
+			while True:
+				async with websockets.connect(self.duckysvc_url) as websocket:
+					while True:
+						try:
+							data = await self.ducky_q.get()
+							await websocket.send(data)
+						except:
+							break
+				await asyncio.sleep(5)
+		
 
 	async def __start_cmd(self, cmd):
 		try:
 			print('New agent connected to C2! Starting jackdaw...')
 			print(cmd.to_dict())
 
+			await self.ducky_q.put(self.duckysvc_event['AGENTCONNECTED'])
+
 			wsproto = 'wsnetws' if self.c2_proto == 'ws' else 'wsnetwss'
 			domain = cmd.domain
 			username = cmd.username
 			if username.find('\\') != -1:
-				domaina, username = username.split('\\')
+				domain, username = username.split('\\')
 			
 			dns_url = 'dns://%s:53/?proxytype=%s&proxyhost=%s&proxyport=%s&proxyagentid=%s' % (cmd.logonserver, wsproto, self.c2_ip, self.c2_port, cmd.agentid.hex())
 			kerberos_url = '%s://%s:%s/?type=sspiproxy&agentid=%s' % (self.c2_proto, self.c2_ip, self.c2_port, cmd.agentid.hex())
@@ -100,18 +135,20 @@ class C2AutoStart:
 			ldap_workers = 4
 			
 			loc_base = '%s_%s' % (datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S"), cmd.agentid.hex())
+			p = pathlib.Path(self.workdir).joinpath('./workdir_' + loc_base)
 			db_loc = '%s_%s.db' % (cmd.domain, loc_base)
-			db_loc = pathlib.Path(self.workdir).joinpath(db_loc)
+			db_loc = p.joinpath(db_loc)
 			db_conn = 'sqlite:///%s' % db_loc
 			create_db(db_conn)
 
-			p = pathlib.Path(self.workdir).joinpath('./workdir_' + loc_base)
+			
 			p.mkdir(parents=True, exist_ok=True)
 			work_dir = str(p)
 
 			print(work_dir)
 			print(db_conn)
-			#return
+			
+			await self.ducky_q.put(self.duckysvc_event['JDENUMSTART'])
 
 			with multiprocessing.Pool() as mp_pool:
 				gatherer = Gatherer(
@@ -137,6 +174,8 @@ class C2AutoStart:
 			
 			print('Jackdaw finished sucsessfully!')
 
+			await self.ducky_q.put(self.duckysvc_event['JDENUMFINISH'])
+
 			web_port = self.get_web_port()
 			print('Starting webserver on port %s' % (web_port))
 			websrv = WebServerProcess(db_conn, '0.0.0.0', web_port, work_dir)
@@ -153,48 +192,49 @@ class C2AutoStart:
 					print('Jackdaw server started!')
 					writer.close()
 					break
-
-			print('back to here!')
-			await asyncio.sleep(1000)
-
-
 			
+			await self.ducky_q.put(self.duckysvc_event['JDSERVICESTART'])
+			await asyncio.sleep(1000)
 
 		except Exception as e:
 			print(e)
 
 	async def run(self):
 		try:
+			first= True
 			await self.setup()
 			while True:
+				if first is False:
+					await asyncio.sleep(5)
+				first = False
 				print('Connecting to C2 server')
 				try:
 					self.ws = await websockets.connect(self.c2url)
 				except Exception as e:
 					print('Failed to connect to server!')
+					continue
 				
-				else:
-					print('Connected to the C2 server!')
-					while True:
-						try:
-							data = await self.ws.recv()
-							cmd = CMD.from_bytes(data)
-							if cmd.type == CMDType.AGENTINFO:
-								asyncio.create_task(self.__start_cmd(cmd))
-							
-						except Exception as e:
-							print('run exception!')
-							print(e)
-							break
-				
-				await asyncio.sleep(5)
+				print('Connected to the C2 server!')
 
+				await self.ducky_q.put(self.duckysvc_event['CONNECTED'])
+				while True:
+					try:
+						data = await self.ws.recv()
+						cmd = CMD.from_bytes(data)
+						if cmd.type == CMDType.AGENTINFO:
+							asyncio.create_task(self.__start_cmd(cmd))
+						
+					except Exception as e:
+						print('run exception!')
+						print(e)
+						continue
+				
 		except Exception as e:
 			print(e)
 
 
-async def amain(url, workdir):
-	auto = C2AutoStart(url, workdir)
+async def amain(url, workdir, duckysvc = None):
+	auto = C2AutoStart(url, workdir, duckysvc = duckysvc)
 	await auto.run()
 
 
@@ -206,11 +246,13 @@ def main():
 	parser = argparse.ArgumentParser(description='Jackdaw autostarter for wsnetws C2 server')
 	parser.add_argument('-v', '--verbose', action='count', default=0)
 	parser.add_argument('-w', '--workdir', help = 'Work data directory to store all results')
+	parser.add_argument('-d', '--duckysvc', help = 'DuckySvc URL for keyboard autotype')
+	parser.add_argument('-e', '--duckyevent', help = 'Event file for the keyboard autotype')
 	parser.add_argument('url', help = 'url')
 	
 	args = parser.parse_args()
 
-	asyncio.run(amain(args.url, args.workdir))
+	asyncio.run(amain(args.url, args.workdir, args.duckysvc))
 
 if __name__ == '__main__':
 	main()
