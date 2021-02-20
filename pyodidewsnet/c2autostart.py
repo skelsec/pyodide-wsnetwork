@@ -52,11 +52,11 @@ DUCKY_EVENT_LOOKUP = {
 }
 
 class C2AutoStart:
-	def __init__(self, c2url, workdir = None, duckysvc = None, ducksvcevt = DUCKY_EVENT_LOOKUP):
+	def __init__(self, c2url, workdir = None, duckysvc = None, duckyevent = DUCKY_EVENT_LOOKUP):
 		self.c2url = c2url
 		self.workdir = workdir
 		self.duckysvc_url = duckysvc
-		self.duckysvc_event = ducksvcevt
+		self.duckysvc_event = duckyevent
 		self.ws = None
 		self.c2_ip = None
 		self.c2_port = None
@@ -72,6 +72,11 @@ class C2AutoStart:
 		return t
 
 	async def setup(self):
+		if self.duckysvc_event is None:
+			self.duckysvc_event = DUCKY_EVENT_LOOKUP
+		elif isinstance(self.duckysvc_event, str):
+			with open(self.duckysvc_event, 'r') as f:
+				self.duckysvc_event = json.load(f)
 		self.ducky_q = asyncio.Queue()
 		self.duck_task = asyncio.create_task(self.__ducky_send())
 
@@ -233,8 +238,8 @@ class C2AutoStart:
 			print(e)
 
 
-async def amain(url, workdir, duckysvc = None):
-	auto = C2AutoStart(url, workdir, duckysvc = duckysvc)
+async def amain(url, workdir, duckysvc = None, duckyevent = None):
+	auto = C2AutoStart(url, workdir, duckysvc = duckysvc, duckyevent=duckyevent)
 	await auto.run()
 
 
@@ -252,7 +257,7 @@ def main():
 	
 	args = parser.parse_args()
 
-	asyncio.run(amain(args.url, args.workdir, args.duckysvc))
+	asyncio.run(amain(args.url, args.workdir, args.duckysvc, args.duckyevent))
 
 if __name__ == '__main__':
 	main()
