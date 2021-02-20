@@ -17,10 +17,6 @@ import websockets
 from pyodidewsnet.protocol import OPCMD, CMD, WSNOK, CMDType, WSNSocketData, WSNConnect
 import multiprocessing
 
-# this is a pyodide module to access javascript objects
-#from js import wsnet
-#import js
-
 class WebServerProcess(multiprocessing.Process):
 	def __init__(self, db_conn, bind_ip, bind_port, work_dir, graph_backend = 'networkx'):
 		multiprocessing.Process.__init__(self)
@@ -44,11 +40,26 @@ class WebServerProcess(multiprocessing.Process):
 		self.server.run()
 
 DUCKY_EVENT_LOOKUP = {
-	'CONNECTED'      : 'STRING Connected to the C2 server!\r\nENTER',
-	'AGENTCONNECTED' : 'STRING Agent connected!\r\nENTER',
-	'JDENUMSTART'    : 'STRING Starting domain enumeration\r\nENTER',
-	'JDENUMFINISH'   : 'STRING Domain enumeration finished!\r\nENTER',
-	'JDSERVICESTART' : 'STRING JD service\r\nENTER',
+	'CONNECTED'      : [
+		'STRING Connected to the C2 server!',
+		'ENTER',
+	],
+	'AGENTCONNECTED' : [
+		'STRING Agent connected!',
+		'ENTER',
+	],
+	'JDENUMSTART'    : [
+		'STRING Starting domain enumeration',
+		'ENTER',
+	],
+	'JDENUMFINISH'   : [
+		'STRING Domain enumeration finished!',
+		'ENTER',
+	],
+	'JDSERVICESTART' : [
+		'STRING JD service',
+		'ENTER',
+	]
 }
 
 class C2AutoStart:
@@ -106,6 +117,7 @@ class C2AutoStart:
 					while True:
 						try:
 							data = await self.ducky_q.get()
+							data = '\r\n'.join(data)
 							await websocket.send(data)
 						except:
 							break
