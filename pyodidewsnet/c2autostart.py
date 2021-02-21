@@ -126,11 +126,16 @@ class C2AutoStart:
 							res = ''
 							for entry in data:
 								if entry.upper().startswith('DELAY '):
+									if len(res) > 0:
+										await websocket.send(res)
+										res = ''
 									t = int(entry[6:].strip())
 									await asyncio.sleep(t/1000)
 								else:
 									res += entry + '\r\n'
-							await websocket.send(res)
+								
+								await websocket.send(res)
+							
 						except:
 							break
 				await asyncio.sleep(5)
