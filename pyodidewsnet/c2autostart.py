@@ -135,6 +135,7 @@ class C2AutoStart:
 									res += entry + '\r\n'
 								
 								await websocket.send(res)
+								res = ''
 							
 						except:
 							break
