@@ -40,6 +40,7 @@ setup(
 	python_requires='>=3.7',
 	install_requires=[
 		'websockets',
+		'aiohttp',
 	],
 	
 	classifiers=(
@@ -50,9 +51,6 @@ setup(
 	#entry_points={
 	#	'console_scripts': [
 	#		'asmbclient = aiosmb.examples.smbclient:main',
-	#		'asmbshareenum = aiosmb.examples.smbshareenum:main',
-	#		'asmbprotocolenum = aiosmb.examples.smbprotocolenum:main',
-	#		'asmbosenum = aiosmb.examples.smbosenum:main',
 	#	],
 	#
 	#}

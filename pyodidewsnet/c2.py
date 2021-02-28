@@ -22,6 +22,7 @@ class ClientServer:
 		self.signal_q_out = signal_q_in
 
 	async def __handle_signal_in_queue(self):
+
 		while True:
 			data = await self.signal_q_in.get()
 			print('AGENT SIGNAL IN! %s' % data)
@@ -48,12 +49,13 @@ class ClientServer:
 				try:
 					data = await ws.recv()
 					#print('AGENT DATA RECV %s' % data)
-					reply = CMD.from_bytes(data)
-					if reply.token == b'\x00'*16:
+					token = data[6:22]
+					if token == b'\x00'*16:
+						reply = CMD.from_bytes(data)
 						await self.signal_q_out.put(('AGENTIN', agentid, reply))
 						continue
 					
-					await self.out_q.put((agentid, reply.token, data))
+					await self.out_q.put((agentid, token, data))
 				except Exception as e:
 					logger.exception('Error in agent handling')
 					return
@@ -148,23 +150,20 @@ class OPServer:
 			logger.info('Operator connected from %s:%d' % (remote_ip, remote_port))
 			while True:
 				data = await ws.recv()
-				#print('OP DATA OUT %s' % data)
-				buff = io.BytesIO(data)
-				dlen = int.from_bytes(buff.read(4), byteorder='big', signed=False)
-				agentid = buff.read(16)
+				agentid = data[4:20]
+				agentdata = data[20:]
+				token = data[26:42]
+				#print('agentid: %s' % agentid)
+				#print('token: %s' % token)
+				#print('agentdata: %s' % agentdata)
 				
-				
-				agentdata = buff.read(-1)
-				cmd = CMD.from_bytes(agentdata)
-				#print(cmd)
-				#print('OP TOKEN: %s' % cmd.token.hex())
-				#print('OP AGENTID: %s' % agentid.hex())
 				if agentid not in self.agents:
-					err = WSNErr(cmd.token, "Agent not found", "")
+					err = WSNErr(token, "Agent not found", "")
 					await ws.send(err.to_bytes())
 					continue
 
-				if cmd.token == b'\x00'*16:
+				if token == b'\x00'*16:
+					cmd = CMD.from_bytes(agentdata)
 					if cmd.type == CMDType.LISTAGENTS:
 						for agentid in self.agents:
 							agentinfo = self.agents[agentid]
@@ -181,7 +180,7 @@ class OPServer:
 							)
 							await ws.send(reply.to_bytes())
 					continue
-				self.data_lookop[agentid+cmd.token] = ws
+				self.data_lookop[agentid+token] = ws
 				
 				await self.out_q.put((agentid, agentdata))
 		
